@@ -1,0 +1,13 @@
+node_modules/
+Desktop.ini
+out/
+*.js.map
+.DS_Store
+coverage/
+*.log
+.cache/
+npm-debug.log*
+build/
+.env
+*.tsbuildinfo
+dist/
