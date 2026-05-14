@@ -1,57 +1,69 @@
-import { execSync } from 'child_process';
-import { parseCommitLine, ParsedCommit } from './parser';
+import { ParsedCommit } from './parser';
 
-export interface CollectorOptions {
-  base?: string;
-  head?: string;
-  repoPath?: string;
+export interface CollectOptions {
+  types?: string[];
+  authors?: string[];
+  excludeScopes?: string[];
 }
 
 /**
- * Runs `git log` to collect commits between two refs.
- * Falls back to the last 20 commits if no base/head are provided.
+ * Filters and returns commits based on optional criteria.
  */
-export function collectCommits(options: CollectorOptions = {}): ParsedCommit[] {
-  const { base, head = 'HEAD', repoPath = process.cwd() } = options;
+export function collectCommits(
+  commits: ParsedCommit[],
+  options: CollectOptions = {}
+): ParsedCommit[] {
+  let result = [...commits];
 
-  const range = base ? `${base}...${head}` : `-20 ${head}`;
-  const format = '--pretty=format:%H %an %as %s';
-
-  let output: string;
-  try {
-    output = execSync(`git log ${range} ${format}`, {
-      cwd: repoPath,
-      encoding: 'utf-8',
-    }).trim();
-  } catch (err) {
-    throw new Error(`Failed to collect commits: ${(err as Error).message}`);
+  if (options.types && options.types.length > 0) {
+    result = result.filter(c => options.types!.includes(c.type));
   }
 
-  if (!output) return [];
+  if (options.authors && options.authors.length > 0) {
+    result = result.filter(c => options.authors!.includes(c.author));
+  }
 
-  return output
-    .split('\n')
-    .map((line) => parseCommitLine(line.trim()))
-    .filter((c): c is ParsedCommit => c !== null);
+  if (options.excludeScopes && options.excludeScopes.length > 0) {
+    result = result.filter(
+      c => !c.scope || !options.excludeScopes!.includes(c.scope)
+    );
+  }
+
+  return result;
 }
 
 /**
- * Collects unique authors from a list of parsed commits.
+ * Extracts a deduplicated list of commit authors.
  */
 export function extractAuthors(commits: ParsedCommit[]): string[] {
   const seen = new Set<string>();
-  return commits
-    .map((c) => c.author)
-    .filter((author) => {
-      if (seen.has(author)) return false;
-      seen.add(author);
-      return true;
-    });
+  for (const commit of commits) {
+    if (commit.author) {
+      seen.add(commit.author);
+    }
+  }
+  return Array.from(seen);
 }
 
 /**
- * Returns all commits flagged as breaking changes.
+ * Returns only commits that contain breaking changes.
  */
 export function extractBreakingChanges(commits: ParsedCommit[]): ParsedCommit[] {
-  return commits.filter((c) => c.breaking);
+  return commits.filter(c => c.breaking === true);
+}
+
+/**
+ * Groups commits by author for attribution in summaries.
+ */
+export function groupCommitsByAuthor(
+  commits: ParsedCommit[]
+): Record<string, ParsedCommit[]> {
+  return commits.reduce<Record<string, ParsedCommit[]>>((acc, commit) => {
+    const author = commit.author || 'unknown';
+    if (!acc[author]) {
+      acc[author] = [];
+    }
+    acc[author].push(commit);
+    return acc;
+  }, {});
 }
