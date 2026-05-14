@@ -22,6 +22,14 @@ describe('parseCommitMessage', () => {
     expect(result.type).toBe('feat');
   });
 
+  it('detects breaking changes with scope', () => {
+    const result = parseCommitMessage('fix(auth)!: drop support for basic auth');
+    expect(result.breaking).toBe(true);
+    expect(result.type).toBe('fix');
+    expect(result.scope).toBe('auth');
+    expect(result.subject).toBe('drop support for basic auth');
+  });
+
   it('handles non-conventional commit messages', () => {
     const result = parseCommitMessage('update readme');
     expect(result.type).toBeNull();
@@ -65,5 +73,10 @@ describe('groupCommitsByType', () => {
     ];
     const grouped = groupCommitsByType(commits);
     expect(grouped['other']).toHaveLength(1);
+  });
+
+  it('returns an empty object for an empty commit list', () => {
+    const grouped = groupCommitsByType([]);
+    expect(Object.keys(grouped)).toHaveLength(0);
   });
 });
