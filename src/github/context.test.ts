@@ -54,6 +54,12 @@ describe('getPullRequestContext', () => {
 });
 
 describe('getInputs', () => {
+  beforeEach(() => {
+    // Reset mocks before each test to avoid state leaking between cases
+    mockCore.getInput.mockReset();
+    mockCore.getBooleanInput.mockReset();
+  });
+
   it('returns parsed inputs', () => {
     mockCore.getInput.mockImplementation((name: string) => {
       if (name === 'github-token') return 'ghp_token';
@@ -81,5 +87,16 @@ describe('getInputs', () => {
 
     const inputs = getInputs();
     expect(inputs.templatePath).toBe('.github/summary.hbs');
+  });
+
+  it('returns undefined outputFile when output-file input is empty', () => {
+    mockCore.getInput.mockImplementation((name: string) => {
+      if (name === 'github-token') return 'ghp_token';
+      return '';
+    });
+    mockCore.getBooleanInput.mockReturnValue(false);
+
+    const inputs = getInputs();
+    expect(inputs.outputFile).toBeUndefined();
   });
 });
