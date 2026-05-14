@@ -43,6 +43,14 @@ describe('getPullRequestContext', () => {
     expect(() => getPullRequestContext()).toThrow('Expected pull_request event');
     mockGithub.context.eventName = 'pull_request';
   });
+
+  it('throws if pull_request payload is missing', () => {
+    const originalPayload = mockGithub.context.payload.pull_request;
+    // @ts-expect-error intentionally removing pull_request for test
+    mockGithub.context.payload.pull_request = undefined;
+    expect(() => getPullRequestContext()).toThrow();
+    mockGithub.context.payload.pull_request = originalPayload;
+  });
 });
 
 describe('getInputs', () => {
@@ -60,5 +68,18 @@ describe('getInputs', () => {
     expect(inputs.updateBody).toBe(true);
     expect(inputs.outputFile).toBe('summary.md');
     expect(inputs.templatePath).toBeUndefined();
+  });
+
+  it('returns templatePath when template-path input is provided', () => {
+    mockCore.getInput.mockImplementation((name: string) => {
+      if (name === 'github-token') return 'ghp_token';
+      if (name === 'template-path') return '.github/summary.hbs';
+      if (name === 'output-file') return '';
+      return '';
+    });
+    mockCore.getBooleanInput.mockReturnValue(false);
+
+    const inputs = getInputs();
+    expect(inputs.templatePath).toBe('.github/summary.hbs');
   });
 });
