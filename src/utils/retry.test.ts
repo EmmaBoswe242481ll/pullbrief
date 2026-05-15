@@ -1,4 +1,35 @@
-import { withRetry, RetryExhaustedError, isRateLimitError } from './retry';
+import { delay, isRateLimitError, withRetry } from './retry';
+
+describe('delay', () => {
+  it('resolves after approximately the given milliseconds', async () => {
+    const start = Date.now();
+    await delay(50);
+    expect(Date.now() - start).toBeGreaterThanOrEqual(40);
+  });
+});
+
+describe('isRateLimitError', () => {
+  it('returns true for rate limit message', () => {
+    expect(isRateLimitError(new Error('rate limit exceeded'))).toBe(true);
+  });
+
+  it('returns true for 429 in message', () => {
+    expect(isRateLimitError(new Error('HTTP 429 Too Many Requests'))).toBe(true);
+  });
+
+  it('returns true for too many requests message', () => {
+    expect(isRateLimitError(new Error('too many requests'))).toBe(true);
+  });
+
+  it('returns false for unrelated errors', () => {
+    expect(isRateLimitError(new Error('Not found'))).toBe(false);
+  });
+
+  it('returns false for non-Error values', () => {
+    expect(isRateLimitError('string error')).toBe(false);
+    expect(isRateLimitError(null)).toBe(false);
+  });
+});
 
 describe('withRetry', () => {
   it('returns result on first successful attempt', async () => {
@@ -8,68 +39,42 @@ describe('withRetry', () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('retries on failure and succeeds eventually', async () => {
+  it('retries on rate limit errors and eventually succeeds', async () => {
     const fn = jest
       .fn()
-      .mockRejectedValueOnce(new Error('fail'))
-      .mockRejectedValueOnce(new Error('fail again'))
+      .mockRejectedValueOnce(new Error('rate limit exceeded'))
       .mockResolvedValue('success');
 
-    const result = await withRetry(fn, { delayMs: 0 });
+    const result = await withRetry(fn, { baseDelayMs: 10 });
     expect(result).toBe('success');
-    expect(fn).toHaveBeenCalledTimes(3);
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 
-  it('throws RetryExhaustedError after max attempts', async () => {
-    const fn = jest.fn().mockRejectedValue(new Error('always fails'));
-
-    await expect(
-      withRetry(fn, { maxAttempts: 3, delayMs: 0 })
-    ).rejects.toBeInstanceOf(RetryExhaustedError);
-
-    expect(fn).toHaveBeenCalledTimes(3);
-  });
-
-  it('stops retrying if shouldRetry returns false', async () => {
-    const fn = jest.fn().mockRejectedValue(new Error('non-retryable'));
-
-    await expect(
-      withRetry(fn, { maxAttempts: 5, delayMs: 0, shouldRetry: () => false })
-    ).rejects.toBeInstanceOf(RetryExhaustedError);
-
+  it('throws immediately for non-retryable errors', async () => {
+    const fn = jest.fn().mockRejectedValue(new Error('Not found'));
+    await expect(withRetry(fn, { baseDelayMs: 10 })).rejects.toThrow('Not found');
     expect(fn).toHaveBeenCalledTimes(1);
   });
 
-  it('RetryExhaustedError exposes attempt count and last error', async () => {
-    const cause = new Error('root cause');
-    const fn = jest.fn().mockRejectedValue(cause);
-
-    try {
-      await withRetry(fn, { maxAttempts: 2, delayMs: 0 });
-    } catch (err) {
-      expect(err).toBeInstanceOf(RetryExhaustedError);
-      const retryErr = err as RetryExhaustedError;
-      expect(retryErr.attempts).toBe(2);
-      expect(retryErr.lastError).toBe(cause);
-    }
-  });
-});
-
-describe('isRateLimitError', () => {
-  it('returns true for 429 status', () => {
-    expect(isRateLimitError({ status: 429 })).toBe(true);
+  it('throws after exhausting max attempts', async () => {
+    const fn = jest.fn().mockRejectedValue(new Error('rate limit exceeded'));
+    await expect(
+      withRetry(fn, { maxAttempts: 3, baseDelayMs: 10 })
+    ).rejects.toThrow('rate limit exceeded');
+    expect(fn).toHaveBeenCalledTimes(3);
   });
 
-  it('returns true for 403 status', () => {
-    expect(isRateLimitError({ status: 403 })).toBe(true);
-  });
+  it('respects custom shouldRetry predicate', async () => {
+    const fn = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('custom retryable'))
+      .mockResolvedValue('done');
 
-  it('returns false for other statuses', () => {
-    expect(isRateLimitError({ status: 500 })).toBe(false);
-  });
-
-  it('returns false for non-objects', () => {
-    expect(isRateLimitError('error string')).toBe(false);
-    expect(isRateLimitError(null)).toBe(false);
+    const result = await withRetry(fn, {
+      baseDelayMs: 10,
+      shouldRetry: (e) => e instanceof Error && e.message.includes('custom'),
+    });
+    expect(result).toBe('done');
+    expect(fn).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,35 +1,33 @@
-/**
- * Retry utility for handling transient failures in GitHub API calls
- * and other async operations.
- */
+import { log } from './logger';
+
+export const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
+export function isRateLimitError(error: unknown): boolean {
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    return (
+      msg.includes('rate limit') ||
+      msg.includes('429') ||
+      msg.includes('too many requests')
+    );
+  }
+  return false;
+}
 
 export interface RetryOptions {
   maxAttempts?: number;
-  delayMs?: number;
-  backoffFactor?: number;
+  baseDelayMs?: number;
+  maxDelayMs?: number;
   shouldRetry?: (error: unknown) => boolean;
 }
 
 const DEFAULT_OPTIONS: Required<RetryOptions> = {
   maxAttempts: 3,
-  delayMs: 500,
-  backoffFactor: 2,
-  shouldRetry: () => true,
+  baseDelayMs: 500,
+  maxDelayMs: 10000,
+  shouldRetry: isRateLimitError,
 };
-
-export class RetryExhaustedError extends Error {
-  constructor(
-    public readonly attempts: number,
-    public readonly lastError: unknown
-  ) {
-    super(`Operation failed after ${attempts} attempt(s)`);
-    this.name = 'RetryExhaustedError';
-  }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -41,25 +39,25 @@ export async function withRetry<T>(
   for (let attempt = 1; attempt <= opts.maxAttempts; attempt++) {
     try {
       return await fn();
-    } catch (err) {
-      lastError = err;
+    } catch (error) {
+      lastError = error;
 
-      if (attempt === opts.maxAttempts || !opts.shouldRetry(err)) {
-        break;
+      if (attempt === opts.maxAttempts || !opts.shouldRetry(error)) {
+        throw error;
       }
 
-      const waitMs = opts.delayMs * Math.pow(opts.backoffFactor, attempt - 1);
-      await delay(waitMs);
+      const backoff = Math.min(
+        opts.baseDelayMs * Math.pow(2, attempt - 1),
+        opts.maxDelayMs
+      );
+
+      log('warn', `Attempt ${attempt} failed. Retrying in ${backoff}ms...`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      await delay(backoff);
     }
   }
 
-  throw new RetryExhaustedError(opts.maxAttempts, lastError);
-}
-
-export function isRateLimitError(error: unknown): boolean {
-  if (typeof error === 'object' && error !== null) {
-    const status = (error as Record<string, unknown>).status;
-    return status === 429 || status === 403;
-  }
-  return false;
+  throw lastError;
 }
