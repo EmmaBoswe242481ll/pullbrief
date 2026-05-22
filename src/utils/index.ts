@@ -6,4 +6,6 @@ export * from './validator';
 export * from './sanitizer';
 export * from './truncator';
 export * from './deduplicator';
+export * from './differ';
 export * from './timer';
+export * from './rate-limiter';
