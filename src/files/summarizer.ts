@@ -78,3 +78,10 @@ export function formatFileSummaryMarkdown(summary: FileSummary): string {
 
   return lines.join("\n");
 }
+
+/**
+ * Returns true if the summary indicates no files were changed.
+ */
+export function isEmptySummary(summary: FileSummary): boolean {
+  return summary.totalChanged === 0;
+}
