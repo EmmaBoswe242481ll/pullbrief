@@ -51,8 +51,29 @@ export class TTLCache<K, V> {
     this.store.clear();
   }
 
+  /**
+   * Returns the number of entries currently in the store, including
+   * entries that may have already expired but not yet been evicted.
+   * Use `purgeExpired()` first for an accurate count of live entries.
+   */
   get size(): number {
     return this.store.size;
+  }
+
+  /**
+   * Removes all expired entries from the store. Useful for reclaiming
+   * memory during long-running processes without clearing live entries.
+   */
+  purgeExpired(): number {
+    const now = Date.now();
+    let purged = 0;
+    for (const [key, entry] of this.store) {
+      if (now > entry.expiresAt) {
+        this.store.delete(key);
+        purged++;
+      }
+    }
+    return purged;
   }
 }
 
