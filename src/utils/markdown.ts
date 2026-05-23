@@ -1,34 +1,41 @@
 /**
- * Utility functions for building and formatting Markdown content.
+ * Lightweight markdown formatting helpers.
  */
 
-/** Wrap text in a Markdown code span. */
+import { wrapText } from './word-wrap';
+
 export function inlineCode(text: string): string {
   return `\`${text}\``;
 }
 
-/** Create a Markdown heading of the given level (1–6). */
-export function heading(text: string, level: 1 | 2 | 3 | 4 | 5 | 6 = 2): string {
-  const prefix = '#'.repeat(level);
-  return `${prefix} ${text}`;
+export function heading(level: 1 | 2 | 3 | 4 | 5 | 6, text: string): string {
+  return `${'#'.repeat(level)} ${text}`;
 }
 
-/** Create a Markdown unordered list from an array of items. */
 export function bulletList(items: string[]): string {
   return items.map((item) => `- ${item}`).join('\n');
 }
 
-/** Create a Markdown ordered list from an array of items. */
 export function orderedList(items: string[]): string {
   return items.map((item, i) => `${i + 1}. ${item}`).join('\n');
 }
 
-/** Wrap text in a fenced Markdown code block with an optional language hint. */
-export function codeBlock(text: string, language = ''): string {
-  return `\`\`\`${language}\n${text}\n\`\`\``;
+export function codeBlock(code: string, lang = ''): string {
+  return `\`\`\`${lang}\n${code}\n\`\`\``;
 }
 
-/** Create a Markdown blockquote. */
+export function bold(text: string): string {
+  return `**${text}**`;
+}
+
+export function italic(text: string): string {
+  return `_${text}_`;
+}
+
+export function link(label: string, url: string): string {
+  return `[${label}](${url})`;
+}
+
 export function blockquote(text: string): string {
   return text
     .split('\n')
@@ -36,30 +43,29 @@ export function blockquote(text: string): string {
     .join('\n');
 }
 
-/** Create a Markdown bold span. */
-export function bold(text: string): string {
-  return `**${text}**`;
+export function horizontalRule(): string {
+  return '---';
 }
 
-/** Create a Markdown italic span. */
-export function italic(text: string): string {
-  return `_${text}_`;
+/**
+ * Wraps a prose paragraph to 80 characters for readable markdown source.
+ */
+export function wrapProse(text: string, width = 80): string {
+  return wrapText(text, { width });
 }
 
-/** Create a Markdown hyperlink. */
-export function link(label: string, url: string): string {
-  return `[${label}](${url})`;
-}
-
-/** Join multiple Markdown sections with a blank line separator. */
-export function joinSections(...sections: string[]): string {
-  return sections.filter(Boolean).join('\n\n');
-}
-
-/** Render a simple two-column Markdown table. */
-export function table(headers: [string, string], rows: [string, string][]): string {
-  const header = `| ${headers[0]} | ${headers[1]} |`;
+/**
+ * Formats a two-column markdown table.
+ * @param headers - Tuple of [leftHeader, rightHeader]
+ * @param rows    - Array of [leftCell, rightCell] tuples
+ */
+export function table(
+  headers: [string, string],
+  rows: [string, string][],
+): string {
+  const [h1, h2] = headers;
   const divider = `| --- | --- |`;
-  const body = rows.map(([a, b]) => `| ${a} | ${b} |`).join('\n');
-  return [header, divider, body].join('\n');
+  const headerRow = `| ${h1} | ${h2} |`;
+  const bodyRows = rows.map(([a, b]) => `| ${a} | ${b} |`);
+  return [headerRow, divider, ...bodyRows].join('\n');
 }
