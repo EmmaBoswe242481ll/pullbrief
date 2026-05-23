@@ -20,6 +20,14 @@ describe('sortStrings', () => {
     sortStrings(original);
     expect(original).toEqual(['b', 'a', 'c']);
   });
+
+  it('returns an empty array when given an empty array', () => {
+    expect(sortStrings([])).toEqual([]);
+  });
+
+  it('returns a single-element array unchanged', () => {
+    expect(sortStrings(['only'])).toEqual(['only']);
+  });
 });
 
 describe('sortByKey', () => {
@@ -37,6 +45,12 @@ describe('sortByKey', () => {
   it('sorts objects by string key descending', () => {
     const result = sortByKey(items, 'name', 'desc');
     expect(result.map((i) => i.name)).toEqual(['Charlie', 'Bob', 'Alice']);
+  });
+
+  it('does not mutate the original array', () => {
+    const original = [...items];
+    sortByKey(items, 'name');
+    expect(items).toEqual(original);
   });
 });
 
@@ -73,6 +87,10 @@ describe('sortCommitTypes', () => {
     const result = sortCommitTypes(['unknown', 'feat']);
     expect(result[0]).toBe('feat');
     expect(result[1]).toBe('unknown');
+  });
+
+  it('returns an empty array when given an empty array', () => {
+    expect(sortCommitTypes([])).toEqual([]);
   });
 });
 
